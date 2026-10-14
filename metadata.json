@@ -1,0 +1,8 @@
+{
+  "name": "DokanChat & Universal Shop",
+  "description": "Direct WhatsApp Social Commerce Storefront and Merchant Admin Console with live catalog sync and BDT pricing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

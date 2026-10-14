@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      (function() {
+        // Polyfill/enable writable fetch on window so extensions (e.g. requests.js) can intercept without throwing getter-only error
+        try {
+          var _rawFetch = window.fetch;
+          if (_rawFetch) {
+            var _activeFetch = _rawFetch.bind(window);
+            Object.defineProperty(window, 'fetch', {
+              configurable: true,
+              enumerable: true,
+              get: function() {
+                return _activeFetch;
+              },
+              set: function(newFetch) {
+                _activeFetch = newFetch;
+              }
+            });
+          }
+        } catch (_) {}
+
+        // Prevent external chrome extension content-script errors from breaking the page error boundary
+        window.addEventListener('error', function(event) {
+          if (event && event.filename && (event.filename.indexOf('chrome-extension://') !== -1 || event.filename.indexOf('moz-extension://') !== -1)) {
+            event.preventDefault();
+            if (event.stopImmediatePropagation) {
+              event.stopImmediatePropagation();
+            }
+            return true;
+          }
+        }, true);
+      })();
+    </script>
+    <title>DokanChat &amp; Universal Shop - Direct WhatsApp Commerce</title>
+    <meta name="description" content="Direct WhatsApp Social Commerce Storefront and Merchant Admin Console with live catalog sync and BDT pricing." />
+    <meta property="og:title" content="DokanChat &amp; Universal Shop - Direct WhatsApp Commerce" />
+    <meta property="og:description" content="Direct WhatsApp Social Commerce Storefront and Merchant Admin Console with live catalog sync and BDT pricing." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  </head>
+  <body class="bg-[#faf8ff] text-[#131b2e] antialiased">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+
