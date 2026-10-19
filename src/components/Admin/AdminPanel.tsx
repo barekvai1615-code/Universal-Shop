@@ -25,6 +25,8 @@ export const AdminPanel: React.FC = () => {
     users,
     quickSwitchUser,
     openLoginGuide,
+    updateProductStock,
+    adjustProductStock,
   } = useStore();
 
   // Search & Filter state
@@ -49,6 +51,7 @@ export const AdminPanel: React.FC = () => {
     'Dual driver 12W sound, 24-hour battery backup, IPX7 waterproof. 1-year official brand warranty with direct replacement inside Bangladesh.'
   );
   const [formInStock, setFormInStock] = useState(true);
+  const [formStockQuantity, setFormStockQuantity] = useState<number>(20);
 
   // WhatsApp Setup Form State
   const [settingsPhone, setSettingsPhone] = useState(settings.whatsappNumber);
@@ -98,6 +101,7 @@ export const AdminPanel: React.FC = () => {
       'Dual driver 12W sound, 24-hour battery backup, IPX7 waterproof. 1-year official brand warranty with direct replacement inside Bangladesh.'
     );
     setFormInStock(true);
+    setFormStockQuantity(20);
     setIsModalOpen(true);
   };
 
@@ -109,12 +113,15 @@ export const AdminPanel: React.FC = () => {
     setFormImage(p.image);
     setFormDescription(p.description);
     setFormInStock(p.inStock);
+    setFormStockQuantity(p.stockQuantity ?? (p.inStock ? 10 : 0));
     setIsModalOpen(true);
   };
 
   const handleSaveProduct = (e: React.FormEvent) => {
     e.preventDefault();
     const priceNum = parseFloat(formPrice.replace(/[^0-9.]/g, '')) || 0;
+    const stockNum = Math.max(0, parseInt(formStockQuantity.toString(), 10) || 0);
+    const resolvedInStock = formInStock && stockNum > 0;
 
     const catLabels: Record<ProductCategory, string> = {
       electronics: 'Electronics',
@@ -131,7 +138,8 @@ export const AdminPanel: React.FC = () => {
         categoryLabel: catLabels[formCategory],
         image: formImage,
         description: formDescription,
-        inStock: formInStock,
+        inStock: resolvedInStock,
+        stockQuantity: stockNum,
       });
     } else {
       addProduct({
@@ -142,8 +150,8 @@ export const AdminPanel: React.FC = () => {
         categoryLabel: catLabels[formCategory],
         image: formImage,
         description: formDescription,
-        inStock: formInStock,
-        stockQuantity: formInStock ? 20 : 0,
+        inStock: resolvedInStock,
+        stockQuantity: stockNum,
         badge: 'New Arrival',
       });
     }
@@ -613,28 +621,87 @@ export const AdminPanel: React.FC = () => {
                             ৳ {p.priceBDT.toLocaleString()}
                           </td>
 
-                          {/* Stock Status with quick toggle */}
+                          {/* Manual Stock Status & Interactive Stepper */}
                           <td className="py-4 px-4">
-                            <button
-                              onClick={() => toggleStock(p.id)}
-                              title="Click to toggle stock status"
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold transition-transform active:scale-95 cursor-pointer ${
-                                p.inStock
-                                  ? 'bg-[#25d366]/20 text-[#005523]'
-                                  : 'bg-rose-100 text-rose-700'
-                              }`}
-                            >
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full ${
-                                  p.inStock ? 'bg-[#006d2f]' : 'bg-rose-600'
-                                }`}
-                              ></span>
-                              <span>
-                                {p.inStock
-                                  ? `In Stock (${p.stockQuantity})`
-                                  : 'Out of Stock (0)'}
-                              </span>
-                            </button>
+                            <div className="flex flex-col gap-1.5 min-w-[140px]">
+                              {/* Stock Status Badge with quick toggle */}
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => toggleStock(p.id)}
+                                  title="Click to toggle stock on/off"
+                                  className="flex items-center gap-1 text-[11px] font-bold cursor-pointer group"
+                                >
+                                  <span
+                                    className={`w-2 h-2 rounded-full transition-transform group-hover:scale-125 ${
+                                      p.inStock
+                                        ? p.stockQuantity <= 5
+                                          ? 'bg-amber-500 animate-pulse'
+                                          : 'bg-[#25d366]'
+                                        : 'bg-rose-600'
+                                    }`}
+                                  />
+                                  <span
+                                    className={`underline decoration-dotted ${
+                                      p.inStock
+                                        ? p.stockQuantity <= 5
+                                          ? 'text-amber-800'
+                                          : 'text-[#005523]'
+                                        : 'text-rose-700'
+                                    }`}
+                                  >
+                                    {p.inStock
+                                      ? p.stockQuantity <= 5
+                                        ? `Low Stock (${p.stockQuantity})`
+                                        : `In Stock (${p.stockQuantity})`
+                                      : 'Out of Stock (0)'}
+                                  </span>
+                                </button>
+                              </div>
+
+                              {/* Manual Stock Quantity Stepper & Direct Numeric Input */}
+                              <div className="flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-lg p-0.5 w-fit shadow-2xs">
+                                <button
+                                  type="button"
+                                  onClick={() => adjustProductStock(p.id, -1)}
+                                  disabled={p.stockQuantity <= 0}
+                                  className="w-6 h-6 rounded bg-white hover:bg-slate-200 disabled:opacity-30 disabled:hover:bg-white text-slate-800 font-bold flex items-center justify-center text-xs shadow-2xs cursor-pointer transition-colors"
+                                  title="Decrease stock by 1"
+                                >
+                                  -
+                                </button>
+
+                                <input
+                                  type="number"
+                                  min="0"
+                                  value={p.stockQuantity}
+                                  onChange={(e) => {
+                                    const val = parseInt(e.target.value, 10);
+                                    updateProductStock(p.id, isNaN(val) ? 0 : Math.max(0, val));
+                                  }}
+                                  className="w-12 text-center py-0.5 px-0.5 text-xs font-mono font-bold text-slate-800 bg-white border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                  title="Type exact stock quantity"
+                                />
+
+                                <button
+                                  type="button"
+                                  onClick={() => adjustProductStock(p.id, 1)}
+                                  className="w-6 h-6 rounded bg-white hover:bg-emerald-50 text-emerald-800 font-bold flex items-center justify-center text-xs shadow-2xs cursor-pointer transition-colors"
+                                  title="Increase stock by 1"
+                                >
+                                  +
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => adjustProductStock(p.id, 5)}
+                                  className="px-1.5 h-6 rounded bg-emerald-100 hover:bg-emerald-200 text-[#005523] text-[10px] font-bold flex items-center justify-center cursor-pointer transition-colors"
+                                  title="Add +5 to stock"
+                                >
+                                  +5
+                                </button>
+                              </div>
+                            </div>
                           </td>
 
                           {/* Inquiries */}
@@ -1062,29 +1129,125 @@ export const AdminPanel: React.FC = () => {
                 />
               </div>
 
-              {/* Stock Availability Toggle Switch (Matching Image 1) */}
-              <div className="p-3.5 rounded-xl bg-[#f2f3ff] border border-[#dae2fd] flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="w-8 h-8 rounded-lg bg-[#25d366]/20 flex items-center justify-center text-[#006d2f]">
-                    <span className="material-symbols-outlined text-[18px]">toggle_on</span>
-                  </span>
+              {/* Manual Stock Quantity & Availability Management */}
+              <div className="p-4 rounded-xl bg-[#f2f3ff] border border-[#dae2fd] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <span className="w-8 h-8 rounded-lg bg-[#25d366]/20 flex items-center justify-center text-[#006d2f]">
+                      <span className="material-symbols-outlined text-[18px]">inventory_2</span>
+                    </span>
+                    <div>
+                      <p className="font-bold text-slate-800 text-xs">Manual Stock Quantity</p>
+                      <p className="text-[11px] text-slate-500">
+                        Adjust stock as needed. When set to 0, it automatically marks as Out of Stock.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Quick In-Stock Switch */}
+                  <label className="relative inline-flex items-center cursor-pointer" title="Toggle In-Stock">
+                    <input
+                      type="checkbox"
+                      checked={formInStock && formStockQuantity > 0}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormInStock(checked);
+                        if (!checked) {
+                          setFormStockQuantity(0);
+                        } else if (formStockQuantity === 0) {
+                          setFormStockQuantity(10);
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#25d366]"></div>
+                  </label>
+                </div>
+
+                {/* Stock Numeric Input and Stepper */}
+                <div className="bg-white rounded-xl p-3 border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-2xs">
                   <div>
-                    <p className="font-bold text-slate-800">Stock Availability</p>
-                    <p className="text-[11px] text-slate-500">
-                      Toggle off to immediately mark this item as Out of Stock on WhatsApp.
-                    </p>
+                    <label className="block text-xs font-bold text-slate-700">
+                      Units in Stock <span className="text-rose-600">*</span>
+                    </label>
+                    <span className="text-[10px] text-slate-500">
+                      {formStockQuantity > 0
+                        ? `✅ In Stock (${formStockQuantity} units available for WhatsApp purchase)`
+                        : '⚠️ Currently Out of Stock (0 units)'}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = Math.max(0, formStockQuantity - 1);
+                        setFormStockQuantity(next);
+                        if (next === 0) setFormInStock(false);
+                      }}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold flex items-center justify-center text-sm cursor-pointer shadow-2xs transition-colors"
+                      title="Decrease by 1"
+                    >
+                      -
+                    </button>
+
+                    <input
+                      type="number"
+                      min="0"
+                      value={formStockQuantity}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value, 10);
+                        const cleanVal = isNaN(val) ? 0 : Math.max(0, val);
+                        setFormStockQuantity(cleanVal);
+                        setFormInStock(cleanVal > 0);
+                      }}
+                      className="w-20 text-center py-1.5 px-2 bg-slate-50 border border-slate-300 rounded-lg font-mono font-bold text-sm text-[#131b2e] focus:outline-none focus:ring-2 focus:ring-[#25d366]"
+                      required
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = formStockQuantity + 1;
+                        setFormStockQuantity(next);
+                        setFormInStock(true);
+                      }}
+                      className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold flex items-center justify-center text-sm cursor-pointer shadow-2xs transition-colors"
+                      title="Increase by 1"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 
-                <label className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={formInStock}
-                    onChange={(e) => setFormInStock(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <div className="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#25d366]"></div>
-                </label>
+                {/* Quick Stock Presets */}
+                <div className="flex flex-wrap items-center gap-1.5 pt-1 text-xs">
+                  <span className="text-[11px] font-semibold text-slate-500 mr-1">Quick Add:</span>
+                  {[5, 10, 25, 50, 100].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => {
+                        const next = formStockQuantity + amt;
+                        setFormStockQuantity(next);
+                        setFormInStock(true);
+                      }}
+                      className="px-2.5 py-1 rounded-md bg-white border border-slate-200 hover:bg-emerald-50 hover:border-emerald-300 text-slate-700 font-semibold text-[11px] cursor-pointer transition-colors shadow-2xs"
+                    >
+                      +{amt}
+                    </button>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormStockQuantity(0);
+                      setFormInStock(false);
+                    }}
+                    className="ml-auto px-2.5 py-1 rounded-md bg-rose-50 border border-rose-200 hover:bg-rose-100 text-rose-700 font-bold text-[11px] cursor-pointer transition-colors"
+                  >
+                    Clear to 0 (Out of Stock)
+                  </button>
+                </div>
               </div>
 
               {/* Modal Footer Buttons */}

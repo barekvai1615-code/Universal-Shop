@@ -87,6 +87,8 @@ interface StoreContextType {
   updateProduct: (id: string, updates: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
   toggleStock: (id: string) => void;
+  updateProductStock: (id: string, newQuantity: number) => void;
+  adjustProductStock: (id: string, delta: number) => void;
 
   // Reviews & Ratings
   addReview: (review: Omit<ProductReview, 'id' | 'timestamp' | 'helpfulCount'>) => void;
@@ -105,8 +107,8 @@ interface StoreContextType {
   setCatalogCategory: (category: string) => void;
   catalogInStockOnly: boolean;
   setCatalogInStockOnly: (inStockOnly: boolean) => void;
-  catalogSortBy: 'featured' | 'price-asc' | 'price-desc' | 'rating' | 'inquiries';
-  setCatalogSortBy: (sort: 'featured' | 'price-asc' | 'price-desc' | 'rating' | 'inquiries') => void;
+  catalogSortBy: 'featured' | 'popularity' | 'price-asc' | 'price-desc' | 'rating' | 'inquiries';
+  setCatalogSortBy: (sort: 'featured' | 'popularity' | 'price-asc' | 'price-desc' | 'rating' | 'inquiries') => void;
   catalogPriceRange: 'all' | 'under-1500' | '1500-3000' | 'above-3000';
   setCatalogPriceRange: (range: 'all' | 'under-1500' | '1500-3000' | 'above-3000') => void;
   resetCatalogFilters: () => void;
@@ -267,7 +269,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [catalogSearchQuery, setCatalogSearchQuery] = useState<string>('');
   const [catalogCategory, setCatalogCategory] = useState<string>('all');
   const [catalogInStockOnly, setCatalogInStockOnly] = useState<boolean>(false);
-  const [catalogSortBy, setCatalogSortBy] = useState<'featured' | 'price-asc' | 'price-desc' | 'rating' | 'inquiries'>('featured');
+  const [catalogSortBy, setCatalogSortBy] = useState<'featured' | 'popularity' | 'price-asc' | 'price-desc' | 'rating' | 'inquiries'>('popularity');
   const [catalogPriceRange, setCatalogPriceRange] = useState<'all' | 'under-1500' | '1500-3000' | 'above-3000'>('all');
 
   const resetCatalogFilters = () => {
@@ -773,6 +775,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
   };
 
+  const updateProductStock = (id: string, newQuantity: number) => {
+    const qty = Math.max(0, Math.floor(newQuantity));
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          const isNowInStock = qty > 0;
+          return {
+            ...p,
+            stockQuantity: qty,
+            inStock: isNowInStock,
+          };
+        }
+        return p;
+      })
+    );
+    showToast(`Stock updated to ${qty} items`, 'success');
+  };
+
+  const adjustProductStock = (id: string, delta: number) => {
+    setProducts((prev) =>
+      prev.map((p) => {
+        if (p.id === id) {
+          const currentQty = p.stockQuantity ?? (p.inStock ? 10 : 0);
+          const nextQty = Math.max(0, currentQty + delta);
+          return {
+            ...p,
+            stockQuantity: nextQty,
+            inStock: nextQty > 0,
+          };
+        }
+        return p;
+      })
+    );
+  };
+
   const addReview = (newRevData: Omit<ProductReview, 'id' | 'timestamp' | 'helpfulCount'>) => {
     const newRev: ProductReview = {
       ...newRevData,
@@ -1022,6 +1059,8 @@ Please let me know about product availability and delivery. Thank you!`;
         updateProduct,
         deleteProduct,
         toggleStock,
+        updateProductStock,
+        adjustProductStock,
         addReview,
         toggleReviewHelpful,
         createOrder,

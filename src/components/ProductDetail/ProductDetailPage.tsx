@@ -143,9 +143,31 @@ Please let me know about product availability and delivery. Thank you!`;
             <div className="relative w-full aspect-square bg-white rounded-2xl border border-[#eaedff] overflow-hidden shadow-sm flex items-center justify-center p-6">
               {/* Badges in Top Left */}
               <div className="absolute top-4 left-4 flex flex-col gap-1.5 z-10">
-                <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200/80 text-[11px] font-bold shadow-xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                  <span>In Stock • Ready to Dispatch</span>
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold shadow-xs ${
+                    product.inStock && product.stockQuantity > 0
+                      ? product.stockQuantity <= 5
+                        ? 'bg-amber-50 text-amber-900 border border-amber-300'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200/80'
+                      : 'bg-rose-50 text-rose-800 border border-rose-300'
+                  }`}
+                >
+                  <span
+                    className={`w-1.5 h-1.5 rounded-full ${
+                      product.inStock && product.stockQuantity > 0
+                        ? product.stockQuantity <= 5
+                          ? 'bg-amber-500 animate-pulse'
+                          : 'bg-emerald-500'
+                        : 'bg-rose-600'
+                    }`}
+                  ></span>
+                  <span>
+                    {product.inStock && product.stockQuantity > 0
+                      ? product.stockQuantity <= 5
+                        ? `Low Stock: Only ${product.stockQuantity} Left!`
+                        : `In Stock (${product.stockQuantity} Units) • Ready to Dispatch`
+                      : 'Out of Stock • Restocking Soon'}
+                  </span>
                 </span>
                 <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-teal-50 text-teal-800 border border-teal-200/80 text-[11px] font-bold shadow-xs">
                   <span className="material-symbols-outlined text-[13px] text-teal-600">bolt</span>

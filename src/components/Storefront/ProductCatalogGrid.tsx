@@ -158,8 +158,12 @@ export const ProductCatalogGrid: React.FC = () => {
       .sort((a, b) => {
         if (catalogSortBy === 'price-asc') return a.priceBDT - b.priceBDT;
         if (catalogSortBy === 'price-desc') return b.priceBDT - a.priceBDT;
+        if (catalogSortBy === 'popularity' || catalogSortBy === 'inquiries') {
+          const popA = (a.inquiriesCount || 0) * 3 + (a.reviewsCount || 0) * 2 + (a.verifiedCustomersCount || 0);
+          const popB = (b.inquiriesCount || 0) * 3 + (b.reviewsCount || 0) * 2 + (b.verifiedCustomersCount || 0);
+          return popB - popA;
+        }
         if (catalogSortBy === 'rating') return b.rating - a.rating;
-        if (catalogSortBy === 'inquiries') return b.inquiriesCount - a.inquiriesCount;
         return 0; // featured default
       });
   }, [
@@ -176,7 +180,7 @@ export const ProductCatalogGrid: React.FC = () => {
     catalogSearchQuery.trim() !== '' ||
     catalogInStockOnly ||
     catalogPriceRange !== 'all' ||
-    catalogSortBy !== 'featured';
+    (catalogSortBy !== 'popularity' && catalogSortBy !== 'featured');
 
   const inStockCount = useMemo(
     () => products.filter((p) => p.inStock).length,
@@ -251,21 +255,21 @@ export const ProductCatalogGrid: React.FC = () => {
             </div>
 
             {/* Sort Selector */}
-            <div className="relative min-w-[190px]">
+            <div className="relative min-w-[200px]">
               <select
                 value={catalogSortBy}
                 onChange={(e) => setCatalogSortBy(e.target.value as any)}
                 aria-label="Sort products"
-                className="w-full appearance-none bg-white pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 text-xs font-semibold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer"
+                className="w-full appearance-none bg-white pl-3.5 pr-9 py-2.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-700 shadow-2xs hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-600 cursor-pointer"
               >
-                <option value="featured">Featured First</option>
-                <option value="price-asc">Price: Low to High</option>
-                <option value="price-desc">Price: High to Low</option>
-                <option value="rating">Highest Customer Rating</option>
-                <option value="inquiries">Most Inquiries / Trending</option>
+                <option value="popularity">🔥 Popularity (Most Popular)</option>
+                <option value="price-asc">💰 Price: Low to High</option>
+                <option value="price-desc">💎 Price: High to Low</option>
+                <option value="rating">⭐ Customer Rating</option>
+                <option value="featured">✨ Featured First</option>
               </select>
               <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] pointer-events-none">
-                sort
+                expand_more
               </span>
             </div>
           </div>
@@ -409,6 +413,67 @@ export const ProductCatalogGrid: React.FC = () => {
           )}
         </div>
 
+        {/* Dedicated Product List Toolbar with Sorting Dropdown */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6 bg-white p-3.5 sm:px-5 sm:py-3 rounded-2xl border border-slate-200 shadow-2xs">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-2.5 h-2.5 rounded-full bg-[#006d2f] animate-pulse"></span>
+            <span className="text-xs sm:text-sm font-extrabold text-[#131b2e]">
+              {filteredProducts.length === 1 ? '1 Product Available' : `${filteredProducts.length} Products Available`}
+            </span>
+            {catalogCategory !== 'all' && (
+              <span className="text-[11px] bg-emerald-50 text-emerald-800 font-bold px-2.5 py-0.5 rounded-lg border border-emerald-200/60">
+                {categoryCounts[catalogCategory] ? categoryDefs.find((c) => c.id === catalogCategory)?.label : catalogCategory}
+              </span>
+            )}
+            <span className="text-slate-300 hidden md:inline">|</span>
+            <span className="hidden md:inline-flex items-center gap-1 text-[11px] text-slate-500 font-medium">
+              Sorted by:{' '}
+              <span className="font-bold text-[#006d2f]">
+                {catalogSortBy === 'price-asc'
+                  ? 'Price: Low to High'
+                  : catalogSortBy === 'price-desc'
+                  ? 'Price: High to Low'
+                  : catalogSortBy === 'popularity'
+                  ? 'Popularity'
+                  : catalogSortBy === 'rating'
+                  ? 'Customer Rating'
+                  : 'Featured'}
+              </span>
+            </span>
+          </div>
+
+          {/* Sort By Dropdown Control */}
+          <div className="flex items-center gap-2.5 w-full sm:w-auto justify-between sm:justify-end">
+            <label
+              htmlFor="product-list-sort-select"
+              className="text-xs font-bold text-slate-700 flex items-center gap-1 shrink-0"
+            >
+              <span className="material-symbols-outlined text-[18px] text-[#006d2f]">
+                swap_vert
+              </span>
+              <span>Sort By:</span>
+            </label>
+            <div className="relative min-w-[210px] flex-1 sm:flex-initial">
+              <select
+                id="product-list-sort-select"
+                value={catalogSortBy}
+                onChange={(e) => setCatalogSortBy(e.target.value as any)}
+                aria-label="Sort product list by price or popularity"
+                className="w-full appearance-none bg-slate-50 hover:bg-white pl-3.5 pr-8 py-2 rounded-xl border border-slate-300 text-xs font-bold text-slate-800 shadow-2xs hover:border-emerald-600 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 focus:border-emerald-600 cursor-pointer transition-all"
+              >
+                <option value="popularity">🔥 Popularity (Most Popular)</option>
+                <option value="price-asc">💰 Price: Low to High</option>
+                <option value="price-desc">💎 Price: High to Low</option>
+                <option value="rating">⭐ Customer Rating</option>
+                <option value="featured">✨ Featured Products</option>
+              </select>
+              <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 text-[18px] pointer-events-none">
+                expand_more
+              </span>
+            </div>
+          </div>
+        </div>
+
         {/* Empty State when no items match filters */}
         {filteredProducts.length === 0 && (
           <div className="text-center py-16 bg-white rounded-2xl border border-dashed border-slate-200 p-8 shadow-sm">
@@ -483,10 +548,16 @@ export const ProductCatalogGrid: React.FC = () => {
 
                     {/* Stock & Discount Badges */}
                     <div className="absolute top-3 left-3 flex flex-wrap items-center gap-1.5">
-                      {product.inStock ? (
-                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-600/90 text-white text-[11px] font-bold shadow-sm backdrop-blur-sm">
-                          In Stock
-                        </span>
+                      {product.inStock && product.stockQuantity > 0 ? (
+                        product.stockQuantity <= 5 ? (
+                          <span className="px-2.5 py-0.5 rounded-full bg-amber-500/95 text-white text-[11px] font-bold shadow-sm backdrop-blur-sm animate-pulse">
+                            Only {product.stockQuantity} Left!
+                          </span>
+                        ) : (
+                          <span className="px-2.5 py-0.5 rounded-full bg-emerald-600/90 text-white text-[11px] font-bold shadow-sm backdrop-blur-sm">
+                            In Stock ({product.stockQuantity})
+                          </span>
+                        )
                       ) : (
                         <span className="px-2.5 py-0.5 rounded-full bg-rose-600/90 text-white text-[11px] font-bold shadow-sm backdrop-blur-sm">
                           Out of Stock
