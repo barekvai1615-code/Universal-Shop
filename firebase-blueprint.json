@@ -1,0 +1,122 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Storefront product items with real-time stock and BDT pricing",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 200 },
+        "sku": { "type": "string", "maxLength": 64 },
+        "category": { "type": "string", "maxLength": 64 },
+        "categoryLabel": { "type": "string", "maxLength": 100 },
+        "priceBDT": { "type": "number" },
+        "originalPriceBDT": { "type": "number" },
+        "inStock": { "type": "boolean" },
+        "stockQuantity": { "type": "number" },
+        "inquiriesCount": { "type": "number" },
+        "image": { "type": "string", "maxLength": 2048 },
+        "description": { "type": "string", "maxLength": 3000 },
+        "rating": { "type": "number" },
+        "reviewsCount": { "type": "number" },
+        "badge": { "type": "string", "maxLength": 100 },
+        "deliveryDays": { "type": "string", "maxLength": 64 },
+        "verifiedCustomersCount": { "type": "number" }
+      },
+      "required": ["id", "name", "sku", "category", "priceBDT", "inStock", "stockQuantity"]
+    },
+    "OrderInquiry": {
+      "title": "OrderInquiry",
+      "description": "WhatsApp direct orders and customer inquiries",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "productName": { "type": "string", "maxLength": 200 },
+        "productSku": { "type": "string", "maxLength": 64 },
+        "productImage": { "type": "string", "maxLength": 2048 },
+        "customerName": { "type": "string", "maxLength": 100 },
+        "customerPhone": { "type": "string", "maxLength": 30 },
+        "district": { "type": "string", "maxLength": 30 },
+        "address": { "type": "string", "maxLength": 500 },
+        "colorSelected": { "type": "string", "maxLength": 50 },
+        "quantity": { "type": "number" },
+        "productPriceBDT": { "type": "number" },
+        "deliveryChargeBDT": { "type": "number" },
+        "totalAmountBDT": { "type": "number" },
+        "timestamp": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "maxLength": 30 }
+      },
+      "required": ["id", "productName", "customerName", "customerPhone", "totalAmountBDT", "status"]
+    },
+    "ProductReview": {
+      "title": "ProductReview",
+      "description": "Verified customer reviews and star ratings",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "productId": { "type": "string", "maxLength": 128 },
+        "authorName": { "type": "string", "maxLength": 100 },
+        "location": { "type": "string", "maxLength": 100 },
+        "rating": { "type": "number" },
+        "comment": { "type": "string", "maxLength": 1000 },
+        "verifiedPurchase": { "type": "boolean" },
+        "timestamp": { "type": "string", "maxLength": 50 },
+        "helpfulCount": { "type": "number" }
+      },
+      "required": ["id", "productId", "authorName", "rating", "comment"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Store configuration including WhatsApp number and delivery charges",
+      "type": "object",
+      "properties": {
+        "whatsappNumber": { "type": "string", "maxLength": 30 },
+        "formattedNumber": { "type": "string", "maxLength": 40 },
+        "storeName": { "type": "string", "maxLength": 100 },
+        "dhakaDeliveryCharge": { "type": "number" },
+        "outsideDeliveryCharge": { "type": "number" },
+        "isStoreOnline": { "type": "boolean" },
+        "messageTemplate": { "type": "string", "maxLength": 1000 }
+      },
+      "required": ["whatsappNumber", "storeName", "dhakaDeliveryCharge", "outsideDeliveryCharge"]
+    },
+    "CustomerAccount": {
+      "title": "CustomerAccount",
+      "description": "Customer profiles for express checkout and order history",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "name": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
+        "email": { "type": "string", "maxLength": 150 },
+        "district": { "type": "string", "maxLength": 30 },
+        "address": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["id", "name", "phone", "district", "address"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Storefront catalog products readable by all visitors and editable by store admins"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/OrderInquiry" },
+      "description": "Customer order inquiries creatable by customers and viewable by store staff and order tracking"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/ProductReview" },
+      "description": "Product reviews and ratings readable by all customers"
+    },
+    "/settings/{settingsId}": {
+      "schema": { "$ref": "#/entities/StoreSettings" },
+      "description": "Store settings readable publicly and writable by store admins"
+    },
+    "/customers/{customerId}": {
+      "schema": { "$ref": "#/entities/CustomerAccount" },
+      "description": "Customer profile records for customer portal"
+    }
+  }
+}

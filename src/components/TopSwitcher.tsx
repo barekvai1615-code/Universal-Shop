@@ -9,6 +9,8 @@ export const TopSwitcher: React.FC = () => {
     setSelectedProductId,
     products,
     currentUser,
+    isDatabaseConnected,
+    syncStatus,
   } = useStore();
 
   return (
@@ -90,8 +92,12 @@ export const TopSwitcher: React.FC = () => {
         </button>
       </div>
 
-      <div className="hidden lg:flex items-center gap-2 text-slate-400 text-[11px] shrink-0">
-        <span className="text-emerald-400 font-mono">DokanChat Engine v1.2</span>
+      <div className="hidden md:flex items-center gap-2 text-slate-400 text-[11px] shrink-0">
+        <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/90 border border-slate-700 text-emerald-400 font-medium">
+          <span className={`w-1.5 h-1.5 rounded-full ${isDatabaseConnected ? 'bg-[#25d366] animate-pulse' : 'bg-amber-400'}`}></span>
+          <span>{isDatabaseConnected ? 'Cloud DB Live' : 'Connecting DB...'}</span>
+          {syncStatus === 'syncing' && <span className="text-[10px] text-slate-400">(Syncing...)</span>}
+        </span>
       </div>
     </div>
   );

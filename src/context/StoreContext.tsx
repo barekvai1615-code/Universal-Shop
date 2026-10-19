@@ -1,4 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
+import {
+  collection,
+  doc,
+  setDoc,
+  deleteDoc,
+  onSnapshot,
+  writeBatch,
+  getDocs,
+} from 'firebase/firestore';
+import { db, handleFirestoreError, OperationType, validateFirestoreConnection } from '../firebase';
 import { Product, StoreSettings, OrderInquiry, ViewMode, AdminTab, ProductReview, UserAccount, UserRole, CustomerAccount } from '../types';
 import { INITIAL_PRODUCTS, INITIAL_SETTINGS, INITIAL_ORDERS, INITIAL_REVIEWS, INITIAL_USERS, INITIAL_CUSTOMERS } from '../data/initialProducts';
 
@@ -27,6 +37,11 @@ interface StoreContextType {
   toast: ToastInfo | null;
   orderSimulator: OrderSimulatorState;
   activeTrackingId: string | null;
+  
+  // Database & Multi-device Sync Status
+  isDatabaseConnected: boolean;
+  syncStatus: 'synced' | 'syncing' | 'offline';
+  refreshDatabase: () => Promise<void>;
   
   activeProductTab: 'details' | 'reviews' | 'how-it-works';
   
@@ -305,13 +320,214 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const [isWishlistOpen, setIsWishlistOpen] = useState<boolean>(false);
 
+  // Database Connection & Synchronization Status
+  const [isDatabaseConnected, setIsDatabaseConnected] = useState<boolean>(true);
+  const [syncStatus, setSyncStatus] = useState<'synced' | 'syncing' | 'offline'>('synced');
+
+  // Verify and listen to real-time Firestore collections across devices
   useEffect(() => {
+    let isMounted = true;
+
+    // Check connectivity on startup
+    validateFirestoreConnection()
+      .then((connected) => {
+        if (isMounted) setIsDatabaseConnected(connected);
+      })
+      .catch(() => {
+        if (isMounted) {
+          setIsDatabaseConnected(false);
+          setSyncStatus('offline');
+        }
+      });
+
+    // 1. Sync Products in Real-time from Firestore
+    const unsubProducts = onSnapshot(
+      collection(db, 'products'),
+      (snapshot) => {
+        if (!isMounted) return;
+        if (!snapshot.empty) {
+          const prods = snapshot.docs.map((docSnap) => ({
+            ...docSnap.data(),
+            id: docSnap.id,
+          })) as Product[];
+          setProducts(prods);
+          setIsDatabaseConnected(true);
+          setSyncStatus('synced');
+          try {
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(prods));
+          } catch (_) {}
+        } else {
+          // Newly provisioned database -> Seed initial products to Firestore
+          const batch = writeBatch(db);
+          INITIAL_PRODUCTS.forEach((prod) => {
+            const ref = doc(db, 'products', prod.id);
+            batch.set(ref, prod);
+          });
+          batch
+            .commit()
+            .then(() => {
+              if (isMounted) {
+                setIsDatabaseConnected(true);
+                setSyncStatus('synced');
+              }
+            })
+            .catch((err) => {
+              handleFirestoreError(err, OperationType.WRITE, 'products');
+            });
+        }
+      },
+      (err) => {
+        if (!isMounted) return;
+        setIsDatabaseConnected(false);
+        setSyncStatus('offline');
+        handleFirestoreError(err, OperationType.GET, 'products');
+      }
+    );
+
+    // 2. Sync Orders in Real-time from Firestore
+    const unsubOrders = onSnapshot(
+      collection(db, 'orders'),
+      (snapshot) => {
+        if (!isMounted) return;
+        if (!snapshot.empty) {
+          const ords = snapshot.docs.map((docSnap) => ({
+            ...docSnap.data(),
+            id: docSnap.id,
+          })) as OrderInquiry[];
+          setOrders(ords);
+          try {
+            localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(ords));
+          } catch (_) {}
+        } else {
+          // Seed initial orders
+          const batch = writeBatch(db);
+          INITIAL_ORDERS.forEach((ord) => {
+            const ref = doc(db, 'orders', ord.id);
+            batch.set(ref, ord);
+          });
+          batch.commit().catch((err) => {
+            handleFirestoreError(err, OperationType.WRITE, 'orders');
+          });
+        }
+      },
+      (err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.GET, 'orders');
+      }
+    );
+
+    // 3. Sync Store Settings in Real-time from Firestore
+    const unsubSettings = onSnapshot(
+      doc(db, 'settings', 'store_config'),
+      (docSnap) => {
+        if (!isMounted) return;
+        if (docSnap.exists()) {
+          const s = docSnap.data() as StoreSettings;
+          setSettings(s);
+          try {
+            localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(s));
+          } catch (_) {}
+        } else {
+          // Initialize settings
+          setDoc(doc(db, 'settings', 'store_config'), INITIAL_SETTINGS).catch((err) => {
+            handleFirestoreError(err, OperationType.WRITE, 'settings/store_config');
+          });
+        }
+      },
+      (err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.GET, 'settings/store_config');
+      }
+    );
+
+    // 4. Sync Reviews in Real-time from Firestore
+    const unsubReviews = onSnapshot(
+      collection(db, 'reviews'),
+      (snapshot) => {
+        if (!isMounted) return;
+        if (!snapshot.empty) {
+          const revs = snapshot.docs.map((docSnap) => ({
+            ...docSnap.data(),
+            id: docSnap.id,
+          })) as ProductReview[];
+          setReviews(revs);
+          try {
+            localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(revs));
+          } catch (_) {}
+        } else {
+          const batch = writeBatch(db);
+          INITIAL_REVIEWS.forEach((rev) => {
+            const ref = doc(db, 'reviews', rev.id);
+            batch.set(ref, rev);
+          });
+          batch.commit().catch((err) => {
+            handleFirestoreError(err, OperationType.WRITE, 'reviews');
+          });
+        }
+      },
+      (err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.GET, 'reviews');
+      }
+    );
+
+    // 5. Sync Customers in Real-time from Firestore
+    const unsubCustomers = onSnapshot(
+      collection(db, 'customers'),
+      (snapshot) => {
+        if (!isMounted) return;
+        if (!snapshot.empty) {
+          const custs = snapshot.docs.map((docSnap) => ({
+            ...docSnap.data(),
+            id: docSnap.id,
+          })) as CustomerAccount[];
+          setCustomers(custs);
+          try {
+            localStorage.setItem(STORAGE_KEYS.CUSTOMERS, JSON.stringify(custs));
+          } catch (_) {}
+        } else {
+          const batch = writeBatch(db);
+          INITIAL_CUSTOMERS.forEach((cust) => {
+            const ref = doc(db, 'customers', cust.id);
+            batch.set(ref, cust);
+          });
+          batch.commit().catch((err) => {
+            handleFirestoreError(err, OperationType.WRITE, 'customers');
+          });
+        }
+      },
+      (err) => {
+        if (!isMounted) return;
+        handleFirestoreError(err, OperationType.GET, 'customers');
+      }
+    );
+
+    return () => {
+      isMounted = false;
+      unsubProducts();
+      unsubOrders();
+      unsubSettings();
+      unsubReviews();
+      unsubCustomers();
+    };
+  }, []);
+
+  const refreshDatabase = async () => {
     try {
-      localStorage.setItem(STORAGE_KEYS.WISHLIST, JSON.stringify(wishlistProductIds));
-    } catch (e) {
-      console.warn('Failed to save wishlist', e);
+      setSyncStatus('syncing');
+      const snap = await getDocs(collection(db, 'products'));
+      if (!snap.empty) {
+        const prods = snap.docs.map((d) => ({ ...d.data(), id: d.id })) as Product[];
+        setProducts(prods);
+      }
+      setSyncStatus('synced');
+      setIsDatabaseConnected(true);
+      showToast('Products refreshed from Cloud Database!', 'success');
+    } catch (err) {
+      setSyncStatus('offline');
+      handleFirestoreError(err, OperationType.GET, 'products');
     }
-  }, [wishlistProductIds]);
+  };
 
   const toggleWishlist = (productId: string) => {
     const targetProduct = products.find((p) => p.id === productId);
@@ -665,6 +881,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentCustomer(created);
     setIsCustomerLoginOpen(false);
     showToast(`🎉 Welcome to DokanChat, ${created.name}! Customer account created.`, 'success');
+
+    // Persist to Cloud Database
+    setDoc(doc(db, 'customers', created.id), created).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `customers/${created.id}`);
+    });
+
     return { success: true };
   };
 
@@ -680,6 +902,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setCurrentCustomer(updated);
     setCustomers((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
     showToast('Customer profile updated successfully!', 'success');
+
+    // Update in Cloud Database
+    setDoc(doc(db, 'customers', updated.id), updated, { merge: true }).catch((err) => {
+      handleFirestoreError(err, OperationType.UPDATE, `customers/${updated.id}`);
+    });
   };
 
   const quickSwitchCustomer = (customerId: string) => {
@@ -739,48 +966,89 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       rating: 5.0,
       reviewsCount: 1,
     };
-    setProducts((prev) => [created, ...prev]);
-    showToast(`"${created.name}" published live to WhatsApp Storefront!`);
+    setProducts((prev) => [created, ...prev.filter((p) => p.id !== id)]);
+    showToast(`"${created.name}" published live to Cloud Database!`, 'success');
+
+    // Persist to Firestore
+    setSyncStatus('syncing');
+    setDoc(doc(db, 'products', id), created)
+      .then(() => setSyncStatus('synced'))
+      .catch((err) => {
+        handleFirestoreError(err, OperationType.WRITE, `products/${id}`);
+      });
   };
 
   const updateProduct = (id: string, updates: Partial<Product>) => {
+    let targetProduct: Product | undefined;
     setProducts((prev) =>
-      prev.map((p) => (p.id === id ? { ...p, ...updates } : p))
+      prev.map((p) => {
+        if (p.id === id) {
+          targetProduct = { ...p, ...updates };
+          return targetProduct;
+        }
+        return p;
+      })
     );
-    showToast('Product details updated successfully!');
+    showToast('Product details updated in Database!');
+
+    if (targetProduct) {
+      setSyncStatus('syncing');
+      setDoc(doc(db, 'products', id), targetProduct, { merge: true })
+        .then(() => setSyncStatus('synced'))
+        .catch((err) => {
+          handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+        });
+    }
   };
 
   const deleteProduct = (id: string) => {
     const target = products.find((p) => p.id === id);
     setProducts((prev) => prev.filter((p) => p.id !== id));
-    showToast(`"${target?.name || 'Product'}" removed from active catalog.`, 'info');
+    showToast(`"${target?.name || 'Product'}" removed from Cloud Database.`, 'info');
+
+    setSyncStatus('syncing');
+    deleteDoc(doc(db, 'products', id))
+      .then(() => setSyncStatus('synced'))
+      .catch((err) => {
+        handleFirestoreError(err, OperationType.DELETE, `products/${id}`);
+      });
   };
 
   const toggleStock = (id: string) => {
+    let nextStock = false;
+    let nextQuantity = 0;
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
-          const nextStock = !p.inStock;
+          nextStock = !p.inStock;
+          nextQuantity = nextStock ? (p.stockQuantity > 0 ? p.stockQuantity : 10) : 0;
           showToast(
             `${p.name} is now marked ${nextStock ? 'In Stock' : 'Out of Stock'}`
           );
           return {
             ...p,
             inStock: nextStock,
-            stockQuantity: nextStock ? (p.stockQuantity > 0 ? p.stockQuantity : 10) : 0,
+            stockQuantity: nextQuantity,
           };
         }
         return p;
       })
     );
+
+    setSyncStatus('syncing');
+    setDoc(doc(db, 'products', id), { inStock: nextStock, stockQuantity: nextQuantity }, { merge: true })
+      .then(() => setSyncStatus('synced'))
+      .catch((err) => {
+        handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+      });
   };
 
   const updateProductStock = (id: string, newQuantity: number) => {
     const qty = Math.max(0, Math.floor(newQuantity));
+    const isNowInStock = qty > 0;
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
-          const isNowInStock = qty > 0;
           return {
             ...p,
             stockQuantity: qty,
@@ -790,24 +1058,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return p;
       })
     );
-    showToast(`Stock updated to ${qty} items`, 'success');
+    showToast(`Stock updated to ${qty} items (synced to database)`, 'success');
+
+    setSyncStatus('syncing');
+    setDoc(doc(db, 'products', id), { stockQuantity: qty, inStock: isNowInStock }, { merge: true })
+      .then(() => setSyncStatus('synced'))
+      .catch((err) => {
+        handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+      });
   };
 
   const adjustProductStock = (id: string, delta: number) => {
+    let updatedQty = 0;
+    let nextInStock = false;
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
           const currentQty = p.stockQuantity ?? (p.inStock ? 10 : 0);
-          const nextQty = Math.max(0, currentQty + delta);
+          updatedQty = Math.max(0, currentQty + delta);
+          nextInStock = updatedQty > 0;
           return {
             ...p,
-            stockQuantity: nextQty,
-            inStock: nextQty > 0,
+            stockQuantity: updatedQty,
+            inStock: nextInStock,
           };
         }
         return p;
       })
     );
+
+    setSyncStatus('syncing');
+    setDoc(doc(db, 'products', id), { stockQuantity: updatedQty, inStock: nextInStock }, { merge: true })
+      .then(() => setSyncStatus('synced'))
+      .catch((err) => {
+        handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+      });
   };
 
   const addReview = (newRevData: Omit<ProductReview, 'id' | 'timestamp' | 'helpfulCount'>) => {
@@ -840,15 +1125,42 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     );
 
     showToast(`Thank you, ${newRev.authorName}! Your review has been published.`);
+
+    // Persist review to Firestore
+    setDoc(doc(db, 'reviews', newRev.id), newRev).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `reviews/${newRev.id}`);
+    });
+    // Update target product's rating in Firestore
+    setDoc(
+      doc(db, 'products', newRevData.productId),
+      {
+        rating: avg,
+        reviewsCount: (products.find((p) => p.id === newRevData.productId)?.reviewsCount || 0) + 1,
+      },
+      { merge: true }
+    ).catch((err) => {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${newRevData.productId}`);
+    });
   };
 
   const toggleReviewHelpful = (reviewId: string) => {
+    let nextCount = 1;
     setReviews((prev) =>
-      prev.map((r) =>
-        r.id === reviewId ? { ...r, helpfulCount: (r.helpfulCount || 0) + 1 } : r
-      )
+      prev.map((r) => {
+        if (r.id === reviewId) {
+          nextCount = (r.helpfulCount || 0) + 1;
+          return { ...r, helpfulCount: nextCount };
+        }
+        return r;
+      })
     );
     showToast('Marked review as helpful!');
+
+    setDoc(doc(db, 'reviews', reviewId), { helpfulCount: nextCount }, { merge: true }).catch(
+      (err) => {
+        handleFirestoreError(err, OperationType.UPDATE, `reviews/${reviewId}`);
+      }
+    );
   };
 
   const createOrder = (orderData: Omit<OrderInquiry, 'id' | 'timestamp' | 'status'>): OrderInquiry => {
@@ -909,10 +1221,27 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     setActiveTrackingId(id);
     showToast(`Order ${id} registered with tracking number ${consignmentId}!`);
+
+    // Persist order to Firestore database
+    setDoc(doc(db, 'orders', id), newOrder).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, `orders/${id}`);
+    });
+    setDoc(
+      doc(db, 'products', orderData.productId),
+      {
+        inquiriesCount:
+          (products.find((p) => p.id === orderData.productId)?.inquiriesCount || 0) + 1,
+      },
+      { merge: true }
+    ).catch((err) => {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${orderData.productId}`);
+    });
+
     return newOrder;
   };
 
   const updateOrderStatus = (id: string, status: OrderInquiry['status']) => {
+    let updatedOrderObj: OrderInquiry | undefined;
     setOrders((prev) =>
       prev.map((o) => {
         if (o.id === id) {
@@ -925,12 +1254,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               })
             : o.trackingEvents;
 
-          return { ...o, status, trackingEvents: updatedEvents };
+          updatedOrderObj = { ...o, status, trackingEvents: updatedEvents };
+          return updatedOrderObj;
         }
         return o;
       })
     );
     showToast(`Order status updated to "${status.toUpperCase()}"`);
+
+    if (updatedOrderObj) {
+      setDoc(doc(db, 'orders', id), updatedOrderObj, { merge: true }).catch((err) => {
+        handleFirestoreError(err, OperationType.UPDATE, `orders/${id}`);
+      });
+    }
   };
 
   const updateOrderTracking = (id: string, updates: Partial<OrderInquiry>) => {
@@ -938,11 +1274,19 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((o) => (o.id === id ? { ...o, ...updates } : o))
     );
     showToast('Order tracking details updated!');
+
+    setDoc(doc(db, 'orders', id), updates, { merge: true }).catch((err) => {
+      handleFirestoreError(err, OperationType.UPDATE, `orders/${id}`);
+    });
   };
 
   const updateSettings = (updates: Partial<StoreSettings>) => {
     setSettings((prev) => ({ ...prev, ...updates }));
-    showToast('Store settings saved successfully!');
+    showToast('Store settings saved successfully to Cloud Database!');
+
+    setDoc(doc(db, 'settings', 'store_config'), updates, { merge: true }).catch((err) => {
+      handleFirestoreError(err, OperationType.WRITE, 'settings/store_config');
+    });
   };
 
   const generateWhatsAppUrl = (product: Product, selectedColor?: string, customNote?: string): string => {
@@ -997,6 +1341,9 @@ Please let me know about product availability and delivery. Thank you!`;
         activeTrackingId,
         adminTab,
         isAuthenticated,
+        isDatabaseConnected,
+        syncStatus,
+        refreshDatabase,
         currentUser,
         users,
         isLoginGuideOpen,
