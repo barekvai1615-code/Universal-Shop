@@ -125,10 +125,12 @@ export const AdminPanel: React.FC = () => {
     const resolvedInStock = formInStock && stockNum > 0;
 
     const catLabels: Record<ProductCategory, string> = {
+      food: 'Food & Organic Items',
       electronics: 'Electronics',
       fashion: 'Fashion & Leather',
       home: 'Home & Living',
       accessories: 'Accessories',
+      groceries: 'Groceries & Snacks',
     };
 
     if (editingProductId) {
@@ -502,10 +504,12 @@ export const AdminPanel: React.FC = () => {
                       className="appearance-none bg-white px-4 py-2.5 pr-9 border border-slate-200 rounded-xl text-xs font-semibold text-[#131b2e] shadow-xs focus:outline-none focus:ring-2 focus:ring-[#25d366] cursor-pointer"
                     >
                       <option value="all">All Categories ({products.length})</option>
+                      <option value="food">Food &amp; Organic Items</option>
                       <option value="electronics">Electronics</option>
                       <option value="fashion">Fashion &amp; Leather</option>
                       <option value="home">Home &amp; Living</option>
                       <option value="accessories">Desk Accessories</option>
+                      <option value="groceries">Groceries &amp; Snacks</option>
                     </select>
                     <span className="material-symbols-outlined absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] pointer-events-none">
                       expand_more
@@ -1084,10 +1088,12 @@ export const AdminPanel: React.FC = () => {
                       onChange={(e) => setFormCategory(e.target.value as ProductCategory)}
                       className="w-full appearance-none px-4 py-2.5 pr-8 rounded-xl bg-white border border-slate-200 text-xs font-semibold text-[#131b2e] shadow-xs focus:outline-none focus:ring-2 focus:ring-[#25d366] cursor-pointer"
                     >
+                      <option value="food">Food &amp; Organic Items</option>
                       <option value="electronics">Electronics</option>
                       <option value="fashion">Fashion &amp; Leather</option>
                       <option value="home">Home &amp; Living</option>
                       <option value="accessories">Accessories</option>
+                      <option value="groceries">Groceries &amp; Snacks</option>
                     </select>
                     <span className="material-symbols-outlined absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-[18px] pointer-events-none">
                       expand_more

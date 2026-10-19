@@ -74,10 +74,12 @@ export const ProductCatalogGrid: React.FC = () => {
   // Category definitions with icons
   const categoryDefs = [
     { id: 'all', label: 'All Products', icon: 'grid_view' },
+    { id: 'food', label: 'Food & Organic Items', icon: 'nutrition' },
     { id: 'electronics', label: 'Electronics & Audio', icon: 'headphones' },
-    { id: 'home', label: 'Home & Living', icon: 'cottage' },
     { id: 'fashion', label: 'Fashion & Leather', icon: 'shopping_bag' },
+    { id: 'home', label: 'Home & Living', icon: 'cottage' },
     { id: 'accessories', label: 'Desk Accessories', icon: 'keyboard' },
+    { id: 'groceries', label: 'Groceries & Snacks', icon: 'local_grocery_store' },
   ];
 
   // Dynamic counts per category
@@ -91,6 +93,8 @@ export const ProductCatalogGrid: React.FC = () => {
 
   // Quick suggestion tags
   const popularKeywords = [
+    { label: 'Honey Nuts', icon: 'nutrition' },
+    { label: 'Organic Food', icon: 'restaurant' },
     { label: 'Earbuds', icon: 'headphones' },
     { label: 'Speaker', icon: 'volume_up' },
     { label: 'Leather', icon: 'wallet' },

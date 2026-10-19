@@ -64,9 +64,10 @@ export const StorefrontHero: React.FC<StorefrontHeroProps> = ({
                 Browse by Category:
               </span>
               {[
+                { label: '🍯 Pure Honey & Food', cat: 'food' },
                 { label: '🎧 Audio & Earbuds', cat: 'electronics' },
-                { label: '💡 Home & Living', cat: 'home' },
                 { label: '👛 Leather Goods', cat: 'fashion' },
+                { label: '💡 Home & Living', cat: 'home' },
                 { label: '⌨️ Desk Gear', cat: 'accessories' },
               ].map((item) => (
                 <button

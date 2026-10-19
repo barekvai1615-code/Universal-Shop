@@ -1,4 +1,4 @@
-export type ProductCategory = 'electronics' | 'fashion' | 'home' | 'accessories';
+export type ProductCategory = 'electronics' | 'food' | 'fashion' | 'home' | 'accessories' | 'groceries';
 
 export interface ProductSpec {
   label: string;
