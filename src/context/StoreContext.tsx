@@ -42,6 +42,7 @@ interface StoreContextType {
   isDatabaseConnected: boolean;
   syncStatus: 'synced' | 'syncing' | 'offline';
   refreshDatabase: () => Promise<void>;
+  restoreAllProducts: () => Promise<void>;
   
   activeProductTab: 'details' | 'reviews' | 'how-it-works';
   
@@ -526,6 +527,41 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     } catch (err) {
       setSyncStatus('offline');
       handleFirestoreError(err, OperationType.GET, 'products');
+    }
+  };
+
+  const restoreAllProducts = async () => {
+    try {
+      setSyncStatus('syncing');
+      const snap = await getDocs(collection(db, 'products'));
+      const existingMap = new Map<string, Product>();
+      snap.forEach((d) => {
+        existingMap.set(d.id, { ...(d.data() as Product), id: d.id });
+      });
+
+      // Write any missing initial products
+      const batch = writeBatch(db);
+      let addedCount = 0;
+      INITIAL_PRODUCTS.forEach((p) => {
+        if (!existingMap.has(p.id)) {
+          const ref = doc(db, 'products', p.id);
+          batch.set(ref, p);
+          existingMap.set(p.id, p);
+          addedCount++;
+        }
+      });
+
+      if (addedCount > 0) {
+        await batch.commit();
+      }
+
+      const mergedList = Array.from(existingMap.values());
+      setProducts(mergedList);
+      setSyncStatus('synced');
+      setIsDatabaseConnected(true);
+      showToast(`All ${mergedList.length} products active and synchronized with Cloud Database!`, 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.WRITE, 'products');
     }
   };
 
@@ -1017,82 +1053,95 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const toggleStock = (id: string) => {
     let nextStock = false;
     let nextQuantity = 0;
+    let targetUpdated: Product | undefined;
+
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
           nextStock = !p.inStock;
           nextQuantity = nextStock ? (p.stockQuantity > 0 ? p.stockQuantity : 10) : 0;
-          showToast(
-            `${p.name} is now marked ${nextStock ? 'In Stock' : 'Out of Stock'}`
-          );
-          return {
+          targetUpdated = {
             ...p,
             inStock: nextStock,
             stockQuantity: nextQuantity,
           };
+          showToast(
+            `${p.name} is now marked ${nextStock ? 'In Stock' : 'Out of Stock'}`
+          );
+          return targetUpdated;
         }
         return p;
       })
     );
 
-    setSyncStatus('syncing');
-    setDoc(doc(db, 'products', id), { inStock: nextStock, stockQuantity: nextQuantity }, { merge: true })
-      .then(() => setSyncStatus('synced'))
-      .catch((err) => {
-        handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
-      });
+    if (targetUpdated) {
+      setSyncStatus('syncing');
+      setDoc(doc(db, 'products', id), targetUpdated, { merge: true })
+        .then(() => setSyncStatus('synced'))
+        .catch((err) => {
+          handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+        });
+    }
   };
 
   const updateProductStock = (id: string, newQuantity: number) => {
     const qty = Math.max(0, Math.floor(newQuantity));
     const isNowInStock = qty > 0;
+    let targetUpdated: Product | undefined;
+
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
-          return {
+          targetUpdated = {
             ...p,
             stockQuantity: qty,
             inStock: isNowInStock,
           };
+          return targetUpdated;
         }
         return p;
       })
     );
     showToast(`Stock updated to ${qty} items (synced to database)`, 'success');
 
-    setSyncStatus('syncing');
-    setDoc(doc(db, 'products', id), { stockQuantity: qty, inStock: isNowInStock }, { merge: true })
-      .then(() => setSyncStatus('synced'))
-      .catch((err) => {
-        handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
-      });
+    if (targetUpdated) {
+      setSyncStatus('syncing');
+      setDoc(doc(db, 'products', id), targetUpdated, { merge: true })
+        .then(() => setSyncStatus('synced'))
+        .catch((err) => {
+          handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+        });
+    }
   };
 
   const adjustProductStock = (id: string, delta: number) => {
-    let updatedQty = 0;
-    let nextInStock = false;
+    let targetUpdated: Product | undefined;
+
     setProducts((prev) =>
       prev.map((p) => {
         if (p.id === id) {
           const currentQty = p.stockQuantity ?? (p.inStock ? 10 : 0);
-          updatedQty = Math.max(0, currentQty + delta);
-          nextInStock = updatedQty > 0;
-          return {
+          const updatedQty = Math.max(0, currentQty + delta);
+          const nextInStock = updatedQty > 0;
+          targetUpdated = {
             ...p,
             stockQuantity: updatedQty,
             inStock: nextInStock,
           };
+          return targetUpdated;
         }
         return p;
       })
     );
 
-    setSyncStatus('syncing');
-    setDoc(doc(db, 'products', id), { stockQuantity: updatedQty, inStock: nextInStock }, { merge: true })
-      .then(() => setSyncStatus('synced'))
-      .catch((err) => {
-        handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
-      });
+    if (targetUpdated) {
+      setSyncStatus('syncing');
+      setDoc(doc(db, 'products', id), targetUpdated, { merge: true })
+        .then(() => setSyncStatus('synced'))
+        .catch((err) => {
+          handleFirestoreError(err, OperationType.UPDATE, `products/${id}`);
+        });
+    }
   };
 
   const addReview = (newRevData: Omit<ProductReview, 'id' | 'timestamp' | 'helpfulCount'>) => {
@@ -1344,6 +1393,7 @@ Please let me know about product availability and delivery. Thank you!`;
         isDatabaseConnected,
         syncStatus,
         refreshDatabase,
+        restoreAllProducts,
         currentUser,
         users,
         isLoginGuideOpen,

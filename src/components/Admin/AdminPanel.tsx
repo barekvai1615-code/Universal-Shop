@@ -27,6 +27,7 @@ export const AdminPanel: React.FC = () => {
     openLoginGuide,
     updateProductStock,
     adjustProductStock,
+    restoreAllProducts,
   } = useStore();
 
   // Search & Filter state
@@ -513,6 +514,15 @@ export const AdminPanel: React.FC = () => {
                 </div>
 
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => restoreAllProducts()}
+                    title="Restore all default catalog products while keeping any newly added products"
+                    className="px-3.5 py-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-800 font-semibold text-xs shadow-xs hover:bg-emerald-100 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  >
+                    <span className="material-symbols-outlined text-[18px] text-[#006d2f]">restore</span>
+                    <span>Restore All Products</span>
+                  </button>
+
                   <button
                     onClick={handleExportCSV}
                     className="px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-slate-700 font-semibold text-xs shadow-xs hover:bg-slate-50 flex items-center gap-1.5 transition-colors cursor-pointer"

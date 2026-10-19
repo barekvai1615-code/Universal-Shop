@@ -95,6 +95,18 @@
         "createdAt": { "type": "string", "maxLength": 50 }
       },
       "required": ["id", "name", "phone", "district", "address"]
+    },
+    "AdminUser": {
+      "title": "AdminUser",
+      "description": "Store admin credentials and role mapping for management access",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "email": { "type": "string", "maxLength": 150 },
+        "role": { "type": "string", "maxLength": 30 },
+        "name": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["id", "email", "role"]
     }
   },
   "firestore": {
@@ -117,6 +129,10 @@
     "/customers/{customerId}": {
       "schema": { "$ref": "#/entities/CustomerAccount" },
       "description": "Customer profile records for customer portal"
+    },
+    "/admins/{adminId}": {
+      "schema": { "$ref": "#/entities/AdminUser" },
+      "description": "Admin access control and role records"
     }
   }
 }

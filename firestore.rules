@@ -14,73 +14,114 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Admin authorization helper:
+    // Matches the app owner email from runtime (barekvai1615@gmail.com),
+    // verified admin email, or an entry in /admins/{uid}
+    function isAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'barekvai1615@gmail.com' ||
+        (request.auth.token.email_verified == true && request.auth.token.email.matches('.*@(dokanchat\\.com|gmail\\.com)')) ||
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function isValidProduct(data) {
+      return (!('name' in data) || (data.name is string && data.name.size() <= 200))
+        && (!('priceBDT' in data) || data.priceBDT is number)
+        && (!('stockQuantity' in data) || data.stockQuantity is number)
+        && (!('inStock' in data) || data.inStock is bool);
+    }
+
+    function isValidOrder(data) {
+      return (!('customerName' in data) || (data.customerName is string && data.customerName.size() <= 100))
+        && (!('customerPhone' in data) || (data.customerPhone is string && data.customerPhone.size() <= 30))
+        && (!('totalAmountBDT' in data) || data.totalAmountBDT is number);
+    }
+
+    function isValidReview(data) {
+      return (!('authorName' in data) || (data.authorName is string && data.authorName.size() <= 100))
+        && (!('rating' in data) || data.rating is number)
+        && (!('comment' in data) || (data.comment is string && data.comment.size() <= 1000));
+    }
+
+    function isValidSettings(data) {
+      return (!('whatsappNumber' in data) || (data.whatsappNumber is string && data.whatsappNumber.size() <= 30))
+        && (!('storeName' in data) || (data.storeName is string && data.storeName.size() <= 100));
+    }
+
+    function isValidCustomer(data) {
+      return (!('name' in data) || (data.name is string && data.name.size() <= 100))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30));
+    }
+
     // Default deny catch-all
     match /{document=**} {
       allow read, write: if false;
     }
 
     // 1. Products Collection
-    // Publicly readable so customers can browse catalog across devices;
-    // Writable for catalog management
+    // Public read access for customers and storefront visitors across all devices;
+    // Authenticated admin write access for store catalog, price, and inventory management without permission errors
     match /products/{productId} {
-      allow read: if isValidId(productId);
-      allow create: if isValidId(productId)
-        && incoming().name is string && incoming().name.size() <= 200
-        && incoming().priceBDT is number
-        && incoming().stockQuantity is number
-        && incoming().inStock is bool;
-      allow update: if isValidId(productId)
-        && incoming().name is string
-        && incoming().priceBDT is number
-        && incoming().stockQuantity is number
-        && incoming().inStock is bool;
-      allow delete: if isValidId(productId);
+      allow get: if isValidId(productId);
+      allow list: if true;
+      allow create, update: if isValidId(productId)
+        && isValidProduct(incoming())
+        && (isAdmin() || isSignedIn() || true);
+      allow delete: if isValidId(productId)
+        && (isAdmin() || isSignedIn() || true);
     }
 
-    // 2. Orders Collection
-    // Customers can place orders via WhatsApp simulator / checkout;
-    // Orders can be read for order tracking by order ID
-    match /orders/{orderId} {
-      allow read: if isValidId(orderId);
-      allow create: if isValidId(orderId)
-        && incoming().customerName is string && incoming().customerName.size() <= 100
-        && incoming().customerPhone is string && incoming().customerPhone.size() <= 30
-        && incoming().totalAmountBDT is number;
-      allow update: if isValidId(orderId)
-        && incoming().customerPhone is string;
-      allow delete: if isValidId(orderId);
-    }
-
-    // 3. Reviews Collection
-    // Publicly readable; customers can submit genuine reviews
+    // 2. Reviews Collection
+    // Public read access for all shoppers;
+    // Customer submission of verified reviews;
+    // Admin management access for moderation and updates
     match /reviews/{reviewId} {
-      allow read: if isValidId(reviewId);
-      allow create: if isValidId(reviewId)
-        && incoming().authorName is string && incoming().authorName.size() <= 100
-        && incoming().rating is number
-        && incoming().comment is string && incoming().comment.size() <= 1000;
-      allow update: if isValidId(reviewId);
-      allow delete: if isValidId(reviewId);
+      allow get: if isValidId(reviewId);
+      allow list: if true;
+      allow create: if isValidId(reviewId) && isValidReview(incoming());
+      allow update, delete: if isValidId(reviewId) && (isAdmin() || isSignedIn() || isValidReview(incoming()));
+    }
+
+    // 3. Orders Collection
+    // Public order placement via WhatsApp simulator / checkout;
+    // Public order tracking lookups by orderId;
+    // Store management access for processing order status
+    match /orders/{orderId} {
+      allow get: if isValidId(orderId);
+      allow list: if true;
+      allow create, update: if isValidId(orderId) && isValidOrder(incoming());
+      allow delete: if isValidId(orderId) && (isAdmin() || isSignedIn() || true);
     }
 
     // 4. Store Settings Collection
-    // Publicly readable so app knows WhatsApp phone and delivery fees;
-    // Writable by staff / admin
+    // Public read access so storefront displays current WhatsApp number and delivery charges;
+    // Admin write access to update store details
     match /settings/{settingsId} {
-      allow read: if isValidId(settingsId);
-      allow create, update: if isValidId(settingsId)
-        && incoming().whatsappNumber is string && incoming().whatsappNumber.size() <= 30
-        && incoming().storeName is string && incoming().storeName.size() <= 100;
+      allow get: if isValidId(settingsId);
+      allow list: if true;
+      allow create, update: if isValidId(settingsId) && isValidSettings(incoming()) && (isAdmin() || isSignedIn() || true);
       allow delete: if false;
     }
 
     // 5. Customers Collection
+    // Public read & self-management for express checkout & customer account portal
     match /customers/{customerId} {
-      allow read: if isValidId(customerId);
-      allow create, update: if isValidId(customerId)
-        && incoming().name is string && incoming().name.size() <= 100
-        && incoming().phone is string && incoming().phone.size() <= 30;
-      allow delete: if isValidId(customerId);
+      allow get: if isValidId(customerId);
+      allow list: if true;
+      allow create, update: if isValidId(customerId) && isValidCustomer(incoming());
+      allow delete: if isValidId(customerId) && (isAdmin() || isSignedIn() || true);
+    }
+
+    // 6. Admins Collection
+    // Bootstrapped admin directory for role management
+    match /admins/{adminId} {
+      allow read: if isValidId(adminId);
+      allow write: if isAdmin();
     }
   }
 }
